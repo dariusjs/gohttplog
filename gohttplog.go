@@ -1,19 +1,25 @@
 package main
 
 import (
-    "fmt"
-    "net/http"
-    "log"
-    "time"
-    "expvar"
+  "fmt"
+  "net/http"
+  "log"
+  "time"
+  "io"
+  "strconv"
+  "expvar"
+  "github.com/paulbellamy/ratecounter"
 )
 
 var (
-  counts = expvar.NewMap("counters")
+  counter        *ratecounter.RateCounter
+  hitsperminute = expvar.NewInt("hits_per_minute")
 )
-func init() {
-  counts.Add("successful", 0)
-  counts.Add("unsuccessful", 0)
+
+func increment(w http.ResponseWriter, r *http.Request) {
+  counter.Incr(1)
+  hitsperminute.Set(counter.Rate())
+  io.WriteString(w, strconv.FormatInt(counter.Rate(), 10))
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
@@ -29,9 +35,11 @@ func Log(handler http.Handler) http.Handler {
 }
 
 func main() {
-    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-        fmt.Fprintf(w, "Hello, %s!", r.URL.Path[1:])
-    })
-    http.ListenAndServe(":8080", Log(http.DefaultServeMux))
-    log.Fatal(http.ListenAndServe(":12345", nil))
+  http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprintf(w, "Hello, %s!", r.URL.Path[1:])
+  })
+  counter = ratecounter.NewRateCounter(1 * time.Minute)
+  http.HandleFunc("/increment", increment)
+  http.ListenAndServe(":8080", Log(http.DefaultServeMux))
+  log.Fatal(http.ListenAndServe(":12345", nil))
 }
