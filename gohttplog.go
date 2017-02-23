@@ -5,7 +5,16 @@ import (
     "net/http"
     "log"
     "time"
+    "expvar"
 )
+
+var (
+  counts = expvar.NewMap("counters")
+)
+func init() {
+  counts.Add("successful", 0)
+  counts.Add("unsuccessful", 0)
+}
 
 func handler(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintf(w, "Time is: %s", time.Now())
@@ -14,6 +23,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 func Log(handler http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         log.Printf("%s %s %s", r.RemoteAddr, r.Method, r.URL)
+        
         handler.ServeHTTP(w, r)
     })
 }
